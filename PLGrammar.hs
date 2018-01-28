@@ -39,6 +39,8 @@ module PLGrammar
   , anyText
   , textWhen
 
+  , try
+
   , upper
   , lower
   , digit
@@ -222,6 +224,9 @@ textIs txt = GLabel txt $ case T.uncons txt of
     ->  inverseIso (elementIso ((), ()))
     \$/ (inverseIso (elementIso c) \$/ anyChar)
     \*/ textIs cs
+
+try :: Grammar a -> Grammar a
+try = GTry
 
 -- | A Grammar between two others.
 between :: Show a => Grammar () -> Grammar a -> Grammar () -> Grammar a
