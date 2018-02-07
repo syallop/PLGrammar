@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                PLGrammar
-version:             0.1.0.0
+version:             0.2.0.0
 synopsis:            Describe grammars such that they can be round-tripped
                      between two types refered to as the printing and parsing
                      type.

@@ -173,6 +173,7 @@ charWhen :: (Char -> Bool) -> Grammar Char
 charWhen p = predI \$/ anyChar
   where
     predI = Iso
+      ["some character predicate"]
       (\c -> if p c then Just c else Nothing)
       (\c -> if p c then Just c else Nothing)
 
@@ -185,13 +186,13 @@ lower = charWhen isLower
 digit :: Grammar Char
 digit = charWhen isDigit
 
-arrow      = charIs '→' \|/ textIs "->"
+arrow      = charIs '→' -- \|/ textIs "->"
 bar        = charIs '|'
 star       = charIs '*'
 plus       = charIs '+'
 comma      = charIs ','
 upArrow    = charIs '^'
-lambda     = charIs 'λ' \|/ charIs '\\'
+lambda     = charIs '\\' -- \|/ charIs 'λ'
 langle     = charIs '<'
 rangle     = charIs '>'
 lparen     = charIs '('
@@ -200,7 +201,7 @@ underscore = charIs '_'
 union      = charIs '∪'
 question   = charIs '?'
 at         = charIs '@'
-bigLambda  = charIs 'Λ' \|/ textIs "/\\"
+bigLambda  = textIs "/\\" -- \|/ charIs 'Λ'
 bigAt      = charIs '#'
 spaceLike  = alternatives . map textIs $ [" ","\t","\n","\r"]
 
@@ -208,9 +209,10 @@ anyText :: Grammar Text
 anyText = GAnyText
 
 textWhen :: (Text -> Bool) -> Grammar Text
-textWhen p = predI \$/ anyText
+textWhen p = GLabel "textWhen" $ predI \$/ anyText
   where
     predI = Iso
+      ["textWhen"]
       (\txt -> if p txt then Just txt else Nothing)
       (\txt -> if p txt then Just txt else Nothing)
 
@@ -230,48 +232,51 @@ try = GTry
 
 -- | A Grammar between two others.
 between :: Show a => Grammar () -> Grammar a -> Grammar () -> Grammar a
-between l a r = l */ a \* r
+between l a r = GLabel "between" $ l */ a \* r
 
 -- | A Grammar between parentheses.
 betweenParens :: Show a => Grammar a -> Grammar a
-betweenParens a = between lparen a rparen
+betweenParens a = GLabel "betweenParens" $ between lparen a rparen
 
 -- | Longest matching text.
 longestMatching :: (Char -> Bool) -> Grammar Text
-longestMatching p = concatI \$/ grammarMany (charWhen p)
+longestMatching p = GLabel "longestMatching" $ concatI \$/ grammarMany (charWhen p)
   where
     concatI :: Iso String Text
     concatI = Iso
+      ["longestMatching"]
       (Just . T.pack)
       (Just . T.unpack)
 
 -- | Longest matching text. At least one character.
 longestMatching1 :: (Char -> Bool) -> Grammar Text
-longestMatching1 p = concatI \$/ grammarMany1 (charWhen p)
+longestMatching1 p = GLabel "longestMatching1" $ concatI \$/ grammarMany1 (charWhen p)
   where
     concatI :: Iso String Text
     concatI = Iso
+      ["longestMatching1"]
       (Just . T.pack)
       (Just . T.unpack)
 
 -- | A natural number: zero and positive integers
 natural :: Grammar Int
-natural = naturalI \$/ longestMatching1 isDigit
+natural = GLabel "natural" $ naturalI \$/ longestMatching1 isDigit
   where
     naturalI :: Iso Text Int
     naturalI = Iso
+      ["natural"]
       (Just . read . T.unpack) -- TODO: partial
       (Just . T.pack . show)
 
 -- | A list of alternative Grammars.
 alternatives :: [Grammar a] -> Grammar a
-alternatives = foldr GAlt GEmpty
+alternatives = GLabel "alternatives" . foldr GAlt GEmpty
 
 grammarMany :: (Eq a,Show a) => Grammar a -> Grammar [a]
-grammarMany g = grammarMany1 g \|/ GPure []
+grammarMany g = GLabel "grammarMany" $ grammarMany1 g \|/ GPure []
 
 grammarMany1 :: (Eq a,Show a) => Grammar a -> Grammar [a]
-grammarMany1 g = consI \$/ g \*/ grammarMany g
+grammarMany1 g = GLabel "grammarMany1" $ consI \$/ g \*/ grammarMany g
 
 infixl 3 \|/
 infixr 6 \*/
@@ -287,7 +292,7 @@ infix 5 \$/
 
 -- | A grammar is permitted to parse but not printed.
 allowed :: Grammar () -> Grammar ()
-allowed g = ignoreIso [] \$/ grammarMany g
+allowed g = try $ ignoreIso [] \$/ grammarMany g
 
 -- | A grammar is required to parse, one is printed.
 required :: Grammar () -> Grammar ()
@@ -299,7 +304,7 @@ prefered g = ignoreIso [()] \$/ grammarMany g
 
 -- | Space is permitted to parse but none printed.
 spaceAllowed :: Grammar ()
-spaceAllowed = allowed spaceLike
+spaceAllowed = try $ allowed spaceLike
 
 -- | Space is required to parse, one is printed.
 spaceRequired :: Grammar ()
@@ -321,7 +326,7 @@ tokenThenMany1ThenSomething
   -> Iso ([xs],a) r
   -> Grammar r
 tokenThenMany1ThenSomething token many something iso
-  = (spaceAllowed */ token)
+  = token
   */ (iso \$/ grammarMany1 ((betweenParens many \|/ many) \* spaceRequired)
           \*/ (betweenParens something \|/ something)
      )

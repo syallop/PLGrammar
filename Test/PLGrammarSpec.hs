@@ -24,6 +24,19 @@ import Test.QuickCheck.Instances
 import Data.Coerce
 
 spec :: Spec
-spec = describe "PLGrammar" $ sequence_
-  [
-  ]
+spec = do
+  describe "Iso" $ sequence_
+    [describe "ParseIso" $ sequence_
+      [it "Fails when constructed with const Nothing" pending
+      ,it "Succeeds with a constant when constructed with cont (Just constant)" pending
+      ,it "Has the same result as the function it was construced with" pending
+      ,it "Composing two functions is the same as manually running each" pending
+      ,it "(a . b) . c == a . (b . c)" pending
+      ]
+    ,describe "PrintIso" $ sequence_
+      [-- TODO: The same as ParseIso
+      ]
+    ]
+  describe "PLGrammar" $ sequence_
+    [
+    ]
