@@ -107,7 +107,7 @@ flipI = Iso
 
 elementIso :: Eq a => a -> Iso () a
 elementIso a0 = Iso
-  ["element"]
+  ["element","constant-parse","print-equal"]
   (const . Just $ a0)
   (\a1 -> if a0 == a1 then Just () else Nothing)
 

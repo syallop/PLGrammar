@@ -162,7 +162,9 @@ seqL g0 g1 = inverseIso unitI \$/ g0 \*/ g1
 
 -- | A single character.
 charIs :: Char -> Grammar ()
-charIs = textIs . T.singleton
+charIs c =
+  let txt = T.singleton c
+   in GLabel txt . textIs . T.singleton $ c
 
 -- | Any single character
 anyChar :: Grammar Char
@@ -178,13 +180,13 @@ charWhen p = predI \$/ anyChar
       (\c -> if p c then Just c else Nothing)
 
 upper :: Grammar Char
-upper = charWhen isUpper
+upper = GLabel "upper" $ charWhen isUpper
 
 lower :: Grammar Char
-lower = charWhen isLower
+lower = GLabel "lower" $ charWhen isLower
 
 digit :: Grammar Char
-digit = charWhen isDigit
+digit = GLabel "digit" $ charWhen isDigit
 
 arrow      = charIs '→' -- \|/ textIs "->"
 bar        = charIs '|'
@@ -203,7 +205,7 @@ question   = charIs '?'
 at         = charIs '@'
 bigLambda  = textIs "/\\" -- \|/ charIs 'Λ'
 bigAt      = charIs '#'
-spaceLike  = alternatives . map textIs $ [" ","\t","\n","\r"]
+spaceLike  = GLabel "spaceLike" $ alternatives . map textIs $ [" ","\t","\n","\r"]
 
 anyText :: Grammar Text
 anyText = GAnyText
@@ -292,7 +294,7 @@ infix 5 \$/
 
 -- | A grammar is permitted to parse but not printed.
 allowed :: Grammar () -> Grammar ()
-allowed g = try $ ignoreIso [] \$/ grammarMany g
+allowed g = ignoreIso [] \$/ grammarMany g
 
 -- | A grammar is required to parse, one is printed.
 required :: Grammar () -> Grammar ()
@@ -304,15 +306,15 @@ prefered g = ignoreIso [()] \$/ grammarMany g
 
 -- | Space is permitted to parse but none printed.
 spaceAllowed :: Grammar ()
-spaceAllowed = try $ allowed spaceLike
+spaceAllowed = GLabel "spaceAllowed" $ allowed spaceLike
 
 -- | Space is required to parse, one is printed.
 spaceRequired :: Grammar ()
-spaceRequired = required spaceLike
+spaceRequired = GLabel "spaceRequired" $ required spaceLike
 
 -- | Space prefered to parse, one is printed.
 spacePrefered :: Grammar ()
-spacePrefered = ignoreIso [()] \$/ grammarMany spaceLike
+spacePrefered = GLabel "spacePrefered" $ ignoreIso [()] \$/ grammarMany spaceLike
 
 tokenThenMany1ThenSomething
   :: ( Eq xs
