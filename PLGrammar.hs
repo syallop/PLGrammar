@@ -166,7 +166,8 @@ charIs c =
   let txt = T.singleton c
    in GLabel txt . textIs . T.singleton $ c
 
--- | Any single character
+-- | Any single character.
+-- ANY including spaces, newlines, etc.
 anyChar :: Grammar Char
 anyChar = GAnyChar
 
@@ -220,14 +221,16 @@ textWhen p = GLabel "textWhen" $ predI \$/ anyText
 
 -- | A string of Text
 textIs :: Text -> Grammar ()
-textIs txt = GLabel txt $ case T.uncons txt of
-  Nothing
-    -> GPure ()
+textIs txt = GLabel txt . GTry . textIs' $ txt
+  where
+    textIs' txt = GLabel txt $ case T.uncons txt of
+      Nothing
+        -> GPure ()
 
-  Just (c,cs)
-    ->  inverseIso (elementIso ((), ()))
-    \$/ (inverseIso (elementIso c) \$/ anyChar)
-    \*/ textIs cs
+      Just (c,cs)
+        ->  inverseIso (elementIso ((), ()))
+        \$/ (inverseIso (elementIso c) \$/ anyChar)
+        \*/ textIs' cs
 
 try :: Grammar a -> Grammar a
 try = GTry
