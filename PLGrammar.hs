@@ -173,7 +173,7 @@ anyChar = GAnyChar
 
 -- | A character that matches a predicate
 charWhen :: (Char -> Bool) -> Grammar Char
-charWhen p = predI \$/ anyChar
+charWhen p = GTry $ predI \$/ anyChar
   where
     predI = Iso
       ["some character predicate"]
@@ -195,7 +195,7 @@ star       = charIs '*'
 plus       = charIs '+'
 comma      = charIs ','
 upArrow    = charIs '^'
-lambda     = charIs '\\' -- \|/ charIs 'λ'
+lambda     = charIs '\\' \|/ charIs 'λ'
 langle     = charIs '<'
 rangle     = charIs '>'
 lparen     = charIs '('
@@ -204,7 +204,7 @@ underscore = charIs '_'
 union      = charIs '∪'
 question   = charIs '?'
 at         = charIs '@'
-bigLambda  = textIs "/\\" -- \|/ charIs 'Λ'
+bigLambda  = textIs "/\\" \|/ charIs 'Λ'
 bigAt      = charIs '#'
 spaceLike  = GLabel "spaceLike" $ alternatives . map textIs $ [" ","\t","\n","\r"]
 
