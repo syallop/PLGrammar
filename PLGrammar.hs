@@ -224,7 +224,7 @@ between l a r = l */ a \* r
 
 -- | A Grammar between parentheses.
 betweenParens :: Show a => Grammar a -> Grammar a
-betweenParens a = GLabel (enhancingLabel "betweenParens") $ between lparen a rparen
+betweenParens a = between lparen a rparen
 
 -- | Longest matching text.
 longestMatching :: (Char -> Bool) -> Grammar Text
