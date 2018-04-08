@@ -36,9 +36,6 @@ module PLGrammar
   , anyChar
   , charWhen
 
-  , anyText
-  , textWhen
-
   , try
 
   , upper
@@ -108,10 +105,6 @@ data Grammar a where
   -- Any character
   GAnyChar
     :: Grammar Char
-
-  -- Any text until a space or newline
-  GAnyText
-    :: Grammar Text
 
   -- Applicative-like pure
   GPure
@@ -201,23 +194,12 @@ rangle     = charIs '>'
 lparen     = charIs '('
 rparen     = charIs ')'
 underscore = charIs '_'
-union      = charIs '∪'
+union      = charIs '∪' \|/ charIs 'U'
 question   = charIs '?'
 at         = charIs '@'
 bigLambda  = textIs "/\\" \|/ charIs 'Λ'
 bigAt      = charIs '#'
 spaceLike  = GLabel "spaceLike" $ alternatives . map textIs $ [" ","\t","\n","\r"]
-
-anyText :: Grammar Text
-anyText = GAnyText
-
-textWhen :: (Text -> Bool) -> Grammar Text
-textWhen p = GLabel "textWhen" $ predI \$/ anyText
-  where
-    predI = Iso
-      ["textWhen"]
-      (\txt -> if p txt then Just txt else Nothing)
-      (\txt -> if p txt then Just txt else Nothing)
 
 -- | A string of Text
 textIs :: Text -> Grammar ()
@@ -351,3 +333,4 @@ combiner f (a:as) x = f a $ combiner f as x
   {-(\x -> case f x of-}
     {-Nothing -> Just -}
   {-)-}
+
