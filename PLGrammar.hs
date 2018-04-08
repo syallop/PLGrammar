@@ -258,7 +258,7 @@ natural = GLabel (descriptiveLabel "natural") $ naturalI \$/ longestMatching1 is
 
 -- | A list of alternative Grammars.
 alternatives :: [Grammar a] -> Grammar a
-alternatives = GLabel (enhancingLabel "alternatives") . foldr GAlt GEmpty
+alternatives = foldr GAlt GEmpty
 
 grammarMany :: (Eq a,Show a) => Grammar a -> Grammar [a]
 grammarMany g = GLabel (enhancingLabel "grammarMany") $ grammarMany1 g \|/ GPure []
