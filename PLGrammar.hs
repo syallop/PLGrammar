@@ -97,6 +97,7 @@ import Control.Applicative
 import Control.Monad
 
 import PLGrammar.Iso
+import PLLabel
 import Prelude hiding ((.),id)
 import Control.Category
 
@@ -135,7 +136,7 @@ data Grammar a where
     -> Grammar (a,b)
 
   GLabel
-    :: Text
+    :: Label
     -> Grammar a
     -> Grammar a
 
@@ -157,7 +158,7 @@ seqL g0 g1 = inverseIso unitI \$/ g0 \*/ g1
 charIs :: Char -> Grammar ()
 charIs c =
   let txt = T.singleton c
-   in GLabel txt . textIs . T.singleton $ c
+   in GLabel (descriptiveLabel txt) . textIs $ txt
 
 -- | Any single character.
 -- ANY including spaces, newlines, etc.
@@ -174,13 +175,13 @@ charWhen p = GTry $ predI \$/ anyChar
       (\c -> if p c then Just c else Nothing)
 
 upper :: Grammar Char
-upper = GLabel "upper" $ charWhen isUpper
+upper = GLabel (descriptiveLabel "upper") $ charWhen isUpper
 
 lower :: Grammar Char
-lower = GLabel "lower" $ charWhen isLower
+lower = GLabel (descriptiveLabel "lower") $ charWhen isLower
 
 digit :: Grammar Char
-digit = GLabel "digit" $ charWhen isDigit
+digit = GLabel (descriptiveLabel "digit") $ charWhen isDigit
 
 arrow      = charIs '→' -- \|/ textIs "->"
 bar        = charIs '|'
@@ -199,13 +200,13 @@ question   = charIs '?'
 at         = charIs '@'
 bigLambda  = textIs "/\\" \|/ charIs 'Λ'
 bigAt      = charIs '#'
-spaceLike  = GLabel "spaceLike" $ alternatives . map textIs $ [" ","\t","\n","\r"]
+spaceLike  = GLabel (descriptiveLabel "spaceLike") $ alternatives . map textIs $ [" ","\t","\n","\r"]
 
 -- | A string of Text
 textIs :: Text -> Grammar ()
-textIs txt = GLabel txt . GTry . textIs' $ txt
+textIs txt = GLabel (descriptiveLabel txt) . GTry . textIs' $ txt
   where
-    textIs' txt = GLabel txt $ case T.uncons txt of
+    textIs' txt = case T.uncons txt of
       Nothing
         -> GPure ()
 
@@ -219,15 +220,15 @@ try = GTry
 
 -- | A Grammar between two others.
 between :: Show a => Grammar () -> Grammar a -> Grammar () -> Grammar a
-between l a r = GLabel "between" $ l */ a \* r
+between l a r = l */ a \* r
 
 -- | A Grammar between parentheses.
 betweenParens :: Show a => Grammar a -> Grammar a
-betweenParens a = GLabel "betweenParens" $ between lparen a rparen
+betweenParens a = GLabel (enhancingLabel "betweenParens") $ between lparen a rparen
 
 -- | Longest matching text.
 longestMatching :: (Char -> Bool) -> Grammar Text
-longestMatching p = GLabel "longestMatching" $ concatI \$/ grammarMany (charWhen p)
+longestMatching p = GLabel (enhancingLabel "longestMatching") $ concatI \$/ grammarMany (charWhen p)
   where
     concatI :: Iso String Text
     concatI = Iso
@@ -237,7 +238,7 @@ longestMatching p = GLabel "longestMatching" $ concatI \$/ grammarMany (charWhen
 
 -- | Longest matching text. At least one character.
 longestMatching1 :: (Char -> Bool) -> Grammar Text
-longestMatching1 p = GLabel "longestMatching1" $ concatI \$/ grammarMany1 (charWhen p)
+longestMatching1 p = GLabel (enhancingLabel "longestMatching1") $ concatI \$/ grammarMany1 (charWhen p)
   where
     concatI :: Iso String Text
     concatI = Iso
@@ -247,7 +248,7 @@ longestMatching1 p = GLabel "longestMatching1" $ concatI \$/ grammarMany1 (charW
 
 -- | A natural number: zero and positive integers
 natural :: Grammar Int
-natural = GLabel "natural" $ naturalI \$/ longestMatching1 isDigit
+natural = GLabel (descriptiveLabel "natural") $ naturalI \$/ longestMatching1 isDigit
   where
     naturalI :: Iso Text Int
     naturalI = Iso
@@ -257,13 +258,13 @@ natural = GLabel "natural" $ naturalI \$/ longestMatching1 isDigit
 
 -- | A list of alternative Grammars.
 alternatives :: [Grammar a] -> Grammar a
-alternatives = GLabel "alternatives" . foldr GAlt GEmpty
+alternatives = GLabel (enhancingLabel "alternatives") . foldr GAlt GEmpty
 
 grammarMany :: (Eq a,Show a) => Grammar a -> Grammar [a]
-grammarMany g = GLabel "grammarMany" $ grammarMany1 g \|/ GPure []
+grammarMany g = GLabel (enhancingLabel "grammarMany") $ grammarMany1 g \|/ GPure []
 
 grammarMany1 :: (Eq a,Show a) => Grammar a -> Grammar [a]
-grammarMany1 g = GLabel "grammarMany1" $ consI \$/ g \*/ grammarMany g
+grammarMany1 g = GLabel (enhancingLabel "grammarMany1") $ consI \$/ g \*/ grammarMany g
 
 infixl 3 \|/
 infixr 6 \*/
@@ -291,15 +292,15 @@ prefered g = ignoreIso [()] \$/ grammarMany g
 
 -- | Space is permitted to parse but none printed.
 spaceAllowed :: Grammar ()
-spaceAllowed = GLabel "spaceAllowed" $ allowed spaceLike
+spaceAllowed = GLabel (descriptiveLabel "spaceAllowed") $ allowed spaceLike
 
 -- | Space is required to parse, one is printed.
 spaceRequired :: Grammar ()
-spaceRequired = GLabel "spaceRequired" $ required spaceLike
+spaceRequired = GLabel (descriptiveLabel "spaceRequired") $ required spaceLike
 
 -- | Space prefered to parse, one is printed.
 spacePrefered :: Grammar ()
-spacePrefered = GLabel "spacePrefered" $ ignoreIso [()] \$/ grammarMany spaceLike
+spacePrefered = GLabel (descriptiveLabel "spacePrefered") $ ignoreIso [()] \$/ grammarMany spaceLike
 
 tokenThenMany1ThenSomething
   :: ( Eq xs
@@ -322,15 +323,4 @@ combiner :: (a -> x -> x) -> [a] -> x -> x
 combiner f []     _ = error "Cant combine empty list"
 combiner f [a]    x = f a x
 combiner f (a:as) x = f a $ combiner f as x
-
-
-{-combinerI-}
-  {-:: (a -> x -> x)-}
-  {--> (x -> Maybe ([a],x))-}
-  {--> Iso ([a], x) x-}
-{-combinerI c f = Iso-}
-  {-(\(as, x) -> Just $ combiner c as x)-}
-  {-(\x -> case f x of-}
-    {-Nothing -> Just -}
-  {-)-}
 

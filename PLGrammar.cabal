@@ -23,6 +23,7 @@ library
   -- other-extensions:    
   build-depends:       base >=4.7
                      , text
+                     , PLLabel
   -- hs-source-dirs:      
   default-language:    Haskell2010
 
@@ -39,6 +40,7 @@ test-suite hspec
                      , QuickCheck
                      , quickcheck-instances
                      , PLGrammar
+                     , PLLabel
 
     default-language:  Haskell2010
 
