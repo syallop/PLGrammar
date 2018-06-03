@@ -3,6 +3,11 @@ packages:
 - '.'
 - '../PLPrinter'
 - '../PLLabel'
+- '../Reversible'
+- location:
+    git: https://github.com/syallop/DSL-Compose.git
+    commit: 8e49641f049c586e21c36c6982f51670082e1e3f
+  extra-dep: true
 extra-deps: []
 flags: {}
 extra-package-dbs: []

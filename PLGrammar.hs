@@ -1,8 +1,13 @@
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 {-# LANGUAGE
     GADTs
-  , RankNTypes
+  , FlexibleContexts
+  , KindSignatures
   , OverloadedStrings
+  , RankNTypes
+  , RankNTypes
+  , ScopedTypeVariables
+  , TypeOperators
   #-}
 {-|
 Module      : PLGrammar
@@ -15,20 +20,19 @@ parser or a printer depending on context. This could prevent round-trip
 properties from being accidentally violated for example, by adjusting a parser
 but not the printer.
 
-Note: WIP. Currently only suitable for translation to a Parser (and maybe not
-even that). Some constructors may be missing/ some may be unneccessary and in
+Note: WIP. Some constructors may be missing/ some may be unneccessary and in
 general the entire type is likely to change.
 
 Correspondance to invertable-syntax:
-  - <$>: GIsoMap:     \$/
-  - <*>: GProductMap: \*/
-  - <|>: GAlt:        \|/
-  - empty: GEmpty
-  - pure: GPure
-  - token: GAnyChar:  anyChar
+  - <$>:   rmap:   \$/
+  - <*>:   rap:    \*/
+  - <|>:   ralt:   \|/
+  - empty: rempty
+  - pure:  rpure
+  - token: anyChar
 -}
 module PLGrammar
-  ( Grammar(..)
+  ( Grammar (..)
 
   , charIs
   , textIs
@@ -37,6 +41,7 @@ module PLGrammar
   , charWhen
 
   , try
+  , label
 
   , upper
   , lower
@@ -70,15 +75,14 @@ module PLGrammar
 
   , alternatives
 
-  , seqR
-  , seqL
+  , rap
   , (\$/)
   , (\*/)
   , (\|/)
   , (\*)
   , (*/)
-  , grammarMany
-  , grammarMany1
+  , rmany
+  , rmany1
 
   , spaceAllowed
   , spaceRequired
@@ -96,92 +100,84 @@ import Data.Monoid
 import Control.Applicative
 import Control.Monad
 
-import PLGrammar.Iso
+{-import PLGrammar.Iso-}
 import PLLabel
+
+import Reversible
+import Reversible.Iso
+import DSL.Instruction
+
 import Prelude hiding ((.),id)
 import Control.Category
 
--- | The grammar of some language.
-data Grammar a where
+-- | Instructions which specify core aspects of a Grammar, minus higher level
+-- features such as alternatives, mapping, sequencing, etc.
+--
+-- - 'a' is the result type the Grammar should parse/ print/ act upon.
+-- - 'p' is the type of program the Grammar is part of.
+data GrammarInstr (p :: * -> *) (a :: *) where
   -- Any character
   GAnyChar
-    :: Grammar Char
-
-  -- Applicative-like pure
-  GPure
-    :: Eq a
-    => a
-    -> Grammar a
-
- -- Alternative empty
-  GEmpty
-    :: Grammar a
-
-  -- Alternative <|>
-  GAlt
-    :: Grammar a
-    -> Grammar a
-    -> Grammar a
-
-  GIsoMap
-    :: Show a
-    => Iso a b
-    -> Grammar a
-    -> Grammar b
-
-  GProductMap
-    :: (Show a, Show b)
-    => Grammar a
-    -> Grammar b
-    -> Grammar (a,b)
+    :: GrammarInstr p Char
 
   GLabel
     :: Label
-    -> Grammar a
-    -> Grammar a
+    -> p a
+    -> GrammarInstr p a
 
   GTry
-    :: Grammar a
-    -> Grammar a
+    :: p a
+    -> GrammarInstr p a
 
--- Takes () on discarded result unlike Applicative
-(*/), seqR :: Show a => Grammar () -> Grammar a -> Grammar a
-(*/) = seqR
-seqR g0 g1 = inverseIso unitI . flipI \$/ g0 \*/ g1
+-- | A Grammar is a Reversible description of some grammar.
+-- - 'a' is the result type the Grammar shold parse/ print/ act upon.
+--
+-- 'Reversible' means a Grammar has access to reversible functions
+-- 'rpure', 'rempty', 'ralt', 'rmap', 'rap' as well as the core Grammar defined
+-- in 'GrammarInstr'.
+type Grammar a = Reversible GrammarInstr a
 
-
-(\*), seqL :: Show a => Grammar a -> Grammar () -> Grammar a
-(\*) = seqL
-seqL g0 g1 = inverseIso unitI \$/ g0 \*/ g1
+-- | A 'Reversible' thing can be 'Label'led to describe itself, often for the
+-- purpose of debugging.
+label
+  :: GrammarInstr :<- i
+  => Label
+  -> Reversible i a
+  -> Reversible i a
+label l gr = reversible $ GLabel l gr
 
 -- | A single character.
 charIs :: Char -> Grammar ()
 charIs c =
   let txt = T.singleton c
-   in GLabel (descriptiveLabel txt) . textIs $ txt
+   in label (descriptiveLabel txt) . textIs $ txt
 
 -- | Any single character.
 -- ANY including spaces, newlines, etc.
-anyChar :: Grammar Char
-anyChar = GAnyChar
+anyChar
+  :: GrammarInstr :<- i
+  => Reversible i Char
+anyChar = reversible GAnyChar
 
 -- | A character that matches a predicate
 charWhen :: (Char -> Bool) -> Grammar Char
-charWhen p = GTry $ predI \$/ anyChar
+charWhen p = try $ predI \$/ anyChar
   where
     predI = Iso
-      ["some character predicate"]
       (\c -> if p c then Just c else Nothing)
       (\c -> if p c then Just c else Nothing)
 
+-- | A single upper case character.
 upper :: Grammar Char
-upper = GLabel (descriptiveLabel "upper") $ charWhen isUpper
+upper = label (descriptiveLabel "upper") $ charWhen isUpper
 
+-- | A single lower case character.
 lower :: Grammar Char
-lower = GLabel (descriptiveLabel "lower") $ charWhen isLower
+lower = label (descriptiveLabel "lower") $ charWhen isLower
 
+-- | A single digit character.
 digit :: Grammar Char
-digit = GLabel (descriptiveLabel "digit") $ charWhen isDigit
+digit = label (descriptiveLabel "digit") $ charWhen isDigit
 
 arrow      = charIs '→' -- \|/ textIs "->"
 bar        = charIs '|'
@@ -200,27 +196,27 @@ question   = charIs '?'
 at         = charIs '@'
 bigLambda  = textIs "/\\" \|/ charIs 'Λ'
 bigAt      = charIs '#'
-spaceLike  = GLabel (descriptiveLabel "spaceLike") $ alternatives . map textIs $ [" ","\t","\n","\r"]
+spaceLike  = label (descriptiveLabel "spaceLike") $ alternatives . map textIs $ [" ","\t","\n","\r"]
 
 -- | A string of Text
 textIs :: Text -> Grammar ()
-textIs txt = GLabel (descriptiveLabel txt) . GTry . textIs' $ txt
+textIs txt = label (descriptiveLabel txt) . try . textIs' $ txt
   where
     textIs' txt = case T.uncons txt of
       Nothing
-        -> GPure ()
+        -> rpure ()
 
       Just (c,cs)
-        ->  inverseIso (elementIso ((), ()))
-        \$/ (inverseIso (elementIso c) \$/ anyChar)
+        ->  inverse (elementIso ((), ()))
+        \$/ (inverse (elementIso c) \$/ anyChar)
         \*/ textIs' cs
 
-try :: Grammar a -> Grammar a
-try = GTry
-
--- | A Grammar between two others.
-between :: Show a => Grammar () -> Grammar a -> Grammar () -> Grammar a
-between l a r = l */ a \* r
+-- | Try should backtrack any notion of consumed input upon failure.
+try
+  :: GrammarInstr :<- i
+  => Reversible i a
+  -> Reversible i a
+try = reversible . GTry
 
 -- | A Grammar between parentheses.
 betweenParens :: Show a => Grammar a -> Grammar a
@@ -228,79 +224,44 @@ betweenParens a = between lparen a rparen
 
 -- | Longest matching text.
 longestMatching :: (Char -> Bool) -> Grammar Text
-longestMatching p = GLabel (enhancingLabel "longestMatching") $ concatI \$/ grammarMany (charWhen p)
+longestMatching p = label (enhancingLabel "longestMatching") $ concatI \$/ rmany (charWhen p)
   where
     concatI :: Iso String Text
     concatI = Iso
-      ["longestMatching"]
       (Just . T.pack)
       (Just . T.unpack)
 
 -- | Longest matching text. At least one character.
 longestMatching1 :: (Char -> Bool) -> Grammar Text
-longestMatching1 p = GLabel (enhancingLabel "longestMatching1") $ concatI \$/ grammarMany1 (charWhen p)
+longestMatching1 p = label (enhancingLabel "longestMatching1") $ concatI \$/ rmany1 (charWhen p)
   where
     concatI :: Iso String Text
     concatI = Iso
-      ["longestMatching1"]
       (Just . T.pack)
       (Just . T.unpack)
 
 -- | A natural number: zero and positive integers
 natural :: Grammar Int
-natural = GLabel (descriptiveLabel "natural") $ naturalI \$/ longestMatching1 isDigit
+natural = label (descriptiveLabel "natural") $ naturalI \$/ longestMatching1 isDigit
   where
     naturalI :: Iso Text Int
     naturalI = Iso
-      ["natural"]
       (Just . read . T.unpack) -- TODO: partial
       (Just . T.pack . show)
 
--- | A list of alternative Grammars.
-alternatives :: [Grammar a] -> Grammar a
-alternatives = foldr GAlt GEmpty
-
-grammarMany :: (Eq a,Show a) => Grammar a -> Grammar [a]
-grammarMany g = GLabel (enhancingLabel "grammarMany") $ grammarMany1 g \|/ GPure []
-
-grammarMany1 :: (Eq a,Show a) => Grammar a -> Grammar [a]
-grammarMany1 g = GLabel (enhancingLabel "grammarMany1") $ consI \$/ g \*/ grammarMany g
-
-infixl 3 \|/
-infixr 6 \*/
-infix 5 \$/
-
-(\|/) = GAlt
-
-(\*/) :: (Show a,Show b) => Grammar a -> Grammar b -> Grammar (a,b)
-(\*/) = GProductMap
-
-(\$/) :: (Show a,Show b) => Iso a b -> Grammar a -> Grammar b
-(\$/) = GIsoMap
-
--- | A grammar is permitted to parse but not printed.
-allowed :: Grammar () -> Grammar ()
-allowed g = ignoreIso [] \$/ grammarMany g
-
--- | A grammar is required to parse, one is printed.
-required :: Grammar () -> Grammar ()
-required g = g \* allowed g
-
--- | A grammar is required to parse, one is printed.
-prefered :: Grammar () -> Grammar ()
-prefered g = ignoreIso [()] \$/ grammarMany g
-
 -- | Space is permitted to parse but none printed.
 spaceAllowed :: Grammar ()
-spaceAllowed = GLabel (descriptiveLabel "spaceAllowed") $ allowed spaceLike
+spaceAllowed = label (descriptiveLabel "spaceAllowed") $ allowed spaceLike
 
 -- | Space is required to parse, one is printed.
 spaceRequired :: Grammar ()
-spaceRequired = GLabel (descriptiveLabel "spaceRequired") $ required spaceLike
+spaceRequired = label (descriptiveLabel "spaceRequired") $ required spaceLike
 
 -- | Space prefered to parse, one is printed.
 spacePrefered :: Grammar ()
-spacePrefered = GLabel (descriptiveLabel "spacePrefered") $ ignoreIso [()] \$/ grammarMany spaceLike
+spacePrefered = label (descriptiveLabel "spacePrefered") $ ignoreIso [()] \$/ rmany spaceLike
+
+{- TODO: These functions should be replaced with a chain or removed -}
 
 tokenThenMany1ThenSomething
   :: ( Eq xs
@@ -315,7 +276,7 @@ tokenThenMany1ThenSomething
   -> Grammar r
 tokenThenMany1ThenSomething token many something iso
   = token
-  */ (iso \$/ grammarMany1 ((betweenParens many \|/ many) \* spaceRequired)
+  */ (iso \$/ rmany1 ((betweenParens many \|/ many) \* spaceRequired)
           \*/ (betweenParens something \|/ something)
      )
 
