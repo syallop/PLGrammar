@@ -33,6 +33,7 @@ Correspondance to invertable-syntax:
 -}
 module PLGrammar
   ( Grammar (..)
+  , GrammarInstr (..)
 
   , charIs
   , textIs
