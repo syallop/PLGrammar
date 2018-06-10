@@ -89,6 +89,8 @@ module PLGrammar
   , spaceRequired
   , spacePrefered
 
+  , permissive
+
   , tokenThenMany1ThenSomething
   )
   where
@@ -261,6 +263,17 @@ spaceRequired = label (descriptiveLabel "spaceRequired") $ required spaceLike
 -- | Space prefered to parse, one is printed.
 spacePrefered :: Grammar ()
 spacePrefered = label (descriptiveLabel "spacePrefered") $ ignoreIso [()] \$/ rmany spaceLike
+
+-- | A permissive grammar is itself and also may have:
+-- - Any number of spaces preceeding
+-- - Any number of enclosing (matched) parentheses
+--  - Which themselves may have internal spacing.
+permissive
+  :: Show a
+  => Grammar a
+  -> Grammar a
+permissive a =
+  spaceAllowed */ (betweenMany (lparen */ spaceAllowed) a (spaceAllowed \* rparen))
 
 {- TODO: These functions should be replaced with a chain or removed -}
 
