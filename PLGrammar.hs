@@ -90,6 +90,7 @@ module PLGrammar
   , spacePrefered
 
   , permissive
+  , token
 
   , tokenThenMany1ThenSomething
   )
@@ -253,14 +254,17 @@ natural = label (descriptiveLabel "natural") $ naturalI \$/ longestMatching1 isD
       (Just . T.pack . show)
 
 -- | Space is permitted to parse but none printed.
+-- 0-n parsed, 0 printed.
 spaceAllowed :: Grammar ()
 spaceAllowed = label (descriptiveLabel "spaceAllowed") $ allowed spaceLike
 
 -- | Space is required to parse, one is printed.
+-- 1-n parsed, 1 printed.
 spaceRequired :: Grammar ()
 spaceRequired = label (descriptiveLabel "spaceRequired") $ required spaceLike
 
 -- | Space prefered to parse, one is printed.
+-- 0-n parsed, 1 printed.
 spacePrefered :: Grammar ()
 spacePrefered = label (descriptiveLabel "spacePrefered") $ ignoreIso [()] \$/ rmany spaceLike
 
@@ -273,7 +277,14 @@ permissive
   => Grammar a
   -> Grammar a
 permissive a =
-  spaceAllowed */ (betweenMany (lparen */ spaceAllowed) a (spaceAllowed \* rparen))
+  token a \|/ betweenMany1 (token lparen) (token a) (token rparen)
+
+-- | A token allows 0-n preceeding spaces
+token
+  :: Show a
+  => Grammar a
+  -> Grammar a
+token gr = spaceAllowed */ gr
 
 {- TODO: These functions should be replaced with a chain or removed -}
 
