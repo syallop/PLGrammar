@@ -224,7 +224,7 @@ try = reversible . GTry
 
 -- | A Grammar between parentheses.
 betweenParens :: Show a => Grammar a -> Grammar a
-betweenParens a = between lparen a rparen
+betweenParens a = between (token lparen) a (token rparen)
 
 -- | Longest matching text.
 longestMatching :: (Char -> Bool) -> Grammar Text
