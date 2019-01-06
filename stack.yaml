@@ -6,7 +6,7 @@ packages:
 - '../Reversible'
 - location:
     git: https://github.com/syallop/DSL-Compose.git
-    commit: 8e49641f049c586e21c36c6982f51670082e1e3f
+    commit: 5a95ae855f3291aa3193a7424892035226b10d2f
   extra-dep: true
 extra-deps: []
 flags: {}
