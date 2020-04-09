@@ -4,9 +4,11 @@ module PLGrammar.TestSpec where
 
 import Test.Hspec
 
+import Prelude hiding (sequence)
+
 import Data.Text
 import qualified Data.Text as Text
-import Control.Monad
+import Control.Monad hiding (sequence)
 import Data.Monoid
 import Data.Semigroup
 import Control.Applicative
@@ -73,6 +75,32 @@ spec = do
     , _shouldPrint          = Just "\"abc\""
     }
 
+  -- Singleton sequences
+  testcase $ TestCase
+    { _testCase             = "Singleton sequence of values: 1. -> 1."
+    , _input                = "1."
+    , _grammar              = sequence
+    , _shouldParse          = Just $ End (CharValue '1')
+    , _shouldParseLeftovers = ""
+    , _shouldPrint          = Just "1."
+    }
+  testcase $ TestCase
+    { _testCase             = "Singleton sequence of values: abc. -> \"abc\"."
+    , _input                = "abc."
+    , _grammar              = sequence
+    , _shouldParse          = Just $ End (TextValue "abc")
+    , _shouldParseLeftovers = ""
+    , _shouldPrint          = Just "\"abc\"."
+    }
+  testcase $ TestCase
+    { _testCase             = "Singleton sequence of values: \"abc\". -> \"abc\"."
+    , _input                = "\"abc\"."
+    , _grammar              = sequence
+    , _shouldParse          = Just $ End (TextValue "abc")
+    , _shouldParseLeftovers = ""
+    , _shouldPrint          = Just "\"abc\"."
+    }
+
 data Sequence
   = End Value
   | Seq Value Sequence
@@ -82,6 +110,24 @@ data Value
   = CharValue Char
   | TextValue Text
   deriving (Show, Eq)
+
+endIso :: Iso Value Sequence
+endIso = Iso
+  { _forwards  = Just . End
+  , _backwards = \s -> case s of
+      End v
+        -> Just v
+      _ -> Nothing
+  }
+
+seqIso :: Iso (Value,Sequence) Sequence
+seqIso = Iso
+  { _forwards  = \(v,s) -> Just $ Seq v s
+  , _backwards = \s -> case s of
+      Seq v s1
+        -> Just (v,s1)
+      _ -> Nothing
+  }
 
 -- Intended semantics:
 -- - Single integers accepted going forward
@@ -105,6 +151,18 @@ preferQuotes g = alternatives
 
 value :: Grammar Value
 value = alternatives [charValue, textValue]
+
+sequence :: Grammar Sequence
+sequence = alternatives
+  [ sequenceEnd
+  , sequenceSeq
+  ]
+
+sequenceEnd :: Grammar Sequence
+sequenceEnd = (endIso \$/ value) \* textIs "."
+
+sequenceSeq :: Grammar Sequence
+sequenceSeq = seqIso \$/ value \*/ alternatives [try (textIs "," */ sequenceSeq), sequenceEnd]
 
 newtype Parser a = Parser (Text -> (Text, Maybe a))
 
