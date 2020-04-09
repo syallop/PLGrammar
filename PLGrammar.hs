@@ -222,9 +222,9 @@ try
   -> Reversible i a
 try = reversible . GTry
 
--- | A Grammar between parentheses.
+-- | A Grammar between parentheses which are prefered.
 betweenParens :: Show a => Grammar a -> Grammar a
-betweenParens a = between (token lparen) a (token rparen)
+betweenParens a = between (prefered $ token lparen) a (prefered $ token rparen)
 
 -- | Longest matching text.
 longestMatching :: (Char -> Bool) -> Grammar Text
