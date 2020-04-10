@@ -101,14 +101,101 @@ spec = do
     , _shouldPrint          = Just "\"abc\"."
     }
 
-data Sequence
-  = End Value
-  | Seq Value Sequence
-  deriving (Show, Eq)
+  -- Longer sequences
+  testcase $ TestCase
+    { _testCase             = "Longer sequence of values: 1,1. -> 1,1."
+    , _input                = "1,1."
+    , _grammar              = sequence
+    , _shouldParse          = Just $ Seq (CharValue '1') $ End (CharValue '1')
+    , _shouldParseLeftovers = ""
+    , _shouldPrint          = Just "1,1."
+    }
+  -- Check optional quotes still behave in end position
+  testcase $ TestCase
+    { _testCase             = "Longer sequence of values: 1,abc. -> 1,\"abc\"."
+    , _input                = "1,abc."
+    , _grammar              = sequence
+    , _shouldParse          = Just $ Seq (CharValue '1') $ End (TextValue "abc")
+    , _shouldParseLeftovers = ""
+    , _shouldPrint          = Just "1,\"abc\"."
+    }
+  testcase $ TestCase
+    { _testCase             = "Longer sequence of values: 1,\"abc\". -> 1,\"abc\"."
+    , _input                = "1,\"abc\"."
+    , _grammar              = sequence
+    , _shouldParse          = Just $ Seq (CharValue '1') $ End (TextValue "abc")
+    , _shouldParseLeftovers = ""
+    , _shouldPrint          = Just "1,\"abc\"."
+    }
+   -- Check optional quotes still behave in non-end position
+  testcase $ TestCase
+    { _testCase             = "Longer sequence of values: abc,1. -> \"abc\",1."
+    , _input                = "abc,1."
+    , _grammar              = sequence
+    , _shouldParse          = Just $ Seq (TextValue "abc") $ End (CharValue '1')
+    , _shouldParseLeftovers = ""
+    , _shouldPrint          = Just "\"abc\",1."
+    }
+  testcase $ TestCase
+    { _testCase             = "Longer sequence of values: \"abc\",1. -> \"abc\",1."
+    , _input                = "\"abc\",1."
+    , _grammar              = sequence
+    , _shouldParse          = Just $ Seq (TextValue "abc") $ End (CharValue '1')
+    , _shouldParseLeftovers = ""
+    , _shouldPrint          = Just "\"abc\",1."
+    }
 
 data Value
   = CharValue Char
   | TextValue Text
+  deriving (Show, Eq)
+
+charIso :: Iso Char Value
+charIso = Iso
+  { _forwards  = Just . CharValue
+  , _backwards = \v -> case v of
+      CharValue c
+        -> Just c
+      _ -> Nothing
+  }
+
+textIso :: Iso Text Value
+textIso = Iso
+  { _forwards  = Just . TextValue
+  , _backwards = \v -> case v of
+      TextValue t
+        -> Just t
+      _ -> Nothing
+  }
+
+-- Intended semantics:
+-- - Single integers accepted going forward
+-- - Single integers returned going backwards
+charValue :: Grammar Value
+charValue = charIso \$/ textIs "1" */ rpure '1' -- TODO: Read full type
+
+-- Intended semantics:
+-- - Optionally quoted strings accepted going forward
+-- - Strings quoted going backward
+textValue :: Grammar Value
+textValue = textIso \$/ (preferQuotes $ textIs "abc" */ rpure "abc") -- TODO: Read full type
+
+-- TODO: Can this be written in terms of a prefer combinator? (Possibly not as
+-- the first quote matching requires the last to match)
+preferQuotes :: (Eq a, Show a) => Grammar a -> Grammar a
+preferQuotes g = alternatives
+  [ try $ textIs "\"" */ g \* textIs "\""
+  , g
+  ]
+
+-- Intended semantics:
+-- - Either a char or a text value is accepted.
+value :: Grammar Value
+value = alternatives [charValue, textValue]
+
+data Sequence
+  = End Value
+  | Seq Value Sequence
   deriving (Show, Eq)
 
 endIso :: Iso Value Sequence
@@ -130,40 +217,26 @@ seqIso = Iso
   }
 
 -- Intended semantics:
--- - Single integers accepted going forward
--- - Single integers returned going backwards
-charValue :: Grammar Value
-charValue = textIs "1" */ (rpure $ CharValue '1') -- TODO: Read full type
-
--- Intended semantics:
--- - Optionally quoted strings accepted going forward
--- - Strings quoted going backward
-textValue :: Grammar Value
-textValue = preferQuotes $ textIs "abc" */ (rpure $ TextValue "abc") -- TODO: Read full type
-
--- TODO: Can this be written in terms of a prefer combinator? (Possibly not as
--- the first quote matching requires the last to match)
-preferQuotes :: (Eq a, Show a) => Grammar a -> Grammar a
-preferQuotes g = alternatives
-  [ try $ textIs "\"" */ g \* textIs "\""
-  , g
-  ]
-
-value :: Grammar Value
-value = alternatives [charValue, textValue]
-
+-- - sequence separated by commas
+-- - sequence terminated by a period
 sequence :: Grammar Sequence
 sequence = alternatives
-  [ sequenceEnd
+  [ try $ sequenceEnd
   , sequenceSeq
   ]
 
 sequenceEnd :: Grammar Sequence
-sequenceEnd = (endIso \$/ value) \* textIs "."
+sequenceEnd = endIso \$/ (value \* textIs ".")
 
 sequenceSeq :: Grammar Sequence
-sequenceSeq = seqIso \$/ value \*/ alternatives [try (textIs "," */ sequenceSeq), sequenceEnd]
+sequenceSeq = seqIso \$/ (value \* textIs ",") \*/ sequence
 
+-- A Parser reads Text into some result type and has the possibility of
+-- producing leftover text.
+--
+-- Parsers may be ran in sequence with >> and used as alternatives with <|>.
+--
+-- Construct Parser from Grammars with toParser
 newtype Parser a = Parser (Text -> (Text, Maybe a))
 
 instance Semigroup a => Semigroup (Parser a) where
