@@ -246,7 +246,6 @@ preferQuotes g = alternatives
   , g
   ]
 
-
 -- Intended semantics:
 -- - Either a char or a text value is accepted.
 value :: Grammar Value
