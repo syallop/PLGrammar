@@ -103,46 +103,80 @@ spec = do
 
   -- Longer sequences
   testcase $ TestCase
-    { _testCase             = "Longer sequence of values: 1,1. -> 1,1."
+    { _testCase             = "Longer sequence of values: 1,1. -> 1, 1."
     , _input                = "1,1."
     , _grammar              = sequence
     , _shouldParse          = Just $ Seq (CharValue '1') $ End (CharValue '1')
     , _shouldParseLeftovers = ""
-    , _shouldPrint          = Just "1,1."
+    , _shouldPrint          = Just "1, 1."
     }
   -- Check optional quotes still behave in end position
   testcase $ TestCase
-    { _testCase             = "Longer sequence of values: 1,abc. -> 1,\"abc\"."
+    { _testCase             = "Longer sequence of values: 1,abc. -> 1, \"abc\"."
     , _input                = "1,abc."
     , _grammar              = sequence
     , _shouldParse          = Just $ Seq (CharValue '1') $ End (TextValue "abc")
     , _shouldParseLeftovers = ""
-    , _shouldPrint          = Just "1,\"abc\"."
+    , _shouldPrint          = Just "1, \"abc\"."
     }
   testcase $ TestCase
-    { _testCase             = "Longer sequence of values: 1,\"abc\". -> 1,\"abc\"."
+    { _testCase             = "Longer sequence of values: 1,\"abc\". -> 1, \"abc\"."
     , _input                = "1,\"abc\"."
     , _grammar              = sequence
     , _shouldParse          = Just $ Seq (CharValue '1') $ End (TextValue "abc")
     , _shouldParseLeftovers = ""
-    , _shouldPrint          = Just "1,\"abc\"."
+    , _shouldPrint          = Just "1, \"abc\"."
     }
    -- Check optional quotes still behave in non-end position
   testcase $ TestCase
-    { _testCase             = "Longer sequence of values: abc,1. -> \"abc\",1."
+    { _testCase             = "Longer sequence of values: abc,1. -> \"abc\", 1."
     , _input                = "abc,1."
     , _grammar              = sequence
     , _shouldParse          = Just $ Seq (TextValue "abc") $ End (CharValue '1')
     , _shouldParseLeftovers = ""
-    , _shouldPrint          = Just "\"abc\",1."
+    , _shouldPrint          = Just "\"abc\", 1."
     }
   testcase $ TestCase
-    { _testCase             = "Longer sequence of values: \"abc\",1. -> \"abc\",1."
+    { _testCase             = "Longer sequence of values: \"abc\",1. -> \"abc\", 1."
     , _input                = "\"abc\",1."
     , _grammar              = sequence
     , _shouldParse          = Just $ Seq (TextValue "abc") $ End (CharValue '1')
     , _shouldParseLeftovers = ""
-    , _shouldPrint          = Just "\"abc\",1."
+    , _shouldPrint          = Just "\"abc\", 1."
+    }
+
+  -- Test spacing rules
+  testcase $ TestCase
+    { _testCase             = "Test trailing spaces preferred but not required as input"
+    , _input                = "abc,1."
+    , _grammar              = sequence
+    , _shouldParse          = Just $ Seq (TextValue "abc") $ End (CharValue '1')
+    , _shouldParseLeftovers = ""
+    , _shouldPrint          = Just "\"abc\", 1."
+    }
+  testcase $ TestCase
+    { _testCase             = "Test trailing spaces preferred and can be given as input"
+    , _input                = "abc, 1."
+    , _grammar              = sequence
+    , _shouldParse          = Just $ Seq (TextValue "abc") $ End (CharValue '1')
+    , _shouldParseLeftovers = ""
+    , _shouldPrint          = Just "\"abc\", 1."
+    }
+  testcase $ TestCase
+    { _testCase             = "Test preceeding spaces allowed but ignored in output"
+    , _input                = "abc ,1."
+    , _grammar              = sequence
+    , _shouldParse          = Just $ Seq (TextValue "abc") $ End (CharValue '1')
+    , _shouldParseLeftovers = ""
+    , _shouldPrint          = Just "\"abc\", 1."
+    }
+  testcase $ TestCase
+    { _testCase             = "Test preceeding and trailing spaces"
+    , _input                = "abc , 1."
+    , _grammar              = sequence
+    , _shouldParse          = Just $ Seq (TextValue "abc") $ End (CharValue '1')
+    , _shouldParseLeftovers = ""
+    , _shouldPrint          = Just "\"abc\", 1."
     }
 
 data Value
@@ -188,6 +222,7 @@ preferQuotes g = alternatives
   , g
   ]
 
+
 -- Intended semantics:
 -- - Either a char or a text value is accepted.
 value :: Grammar Value
@@ -219,6 +254,8 @@ seqIso = Iso
 -- Intended semantics:
 -- - sequence separated by commas
 -- - sequence terminated by a period
+-- - Spaces before commas should be allowed but ignored in reverse
+-- - Spaces after commas should be allowed but become one in reverse
 sequence :: Grammar Sequence
 sequence = alternatives
   [ try $ sequenceEnd
@@ -229,7 +266,13 @@ sequenceEnd :: Grammar Sequence
 sequenceEnd = endIso \$/ (value \* textIs ".")
 
 sequenceSeq :: Grammar Sequence
-sequenceSeq = seqIso \$/ (value \* textIs ",") \*/ sequence
+sequenceSeq = seqIso \$/ (value \* spacedComma) \*/ sequence
+
+-- A comma with spacing rules:
+-- - Allow preceeding space forwards, ignore all backwards
+-- - Prefer a trailing space forwards, use a single space backwards
+spacedComma :: Grammar ()
+spacedComma = allowed (textIs " ") */ textIs "," \* prefered (textIs " ")
 
 -- A Parser reads Text into some result type and has the possibility of
 -- producing leftover text.
