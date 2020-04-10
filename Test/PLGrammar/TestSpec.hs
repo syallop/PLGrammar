@@ -178,6 +178,30 @@ spec = do
     , _shouldParseLeftovers = ""
     , _shouldPrint          = Just "\"abc\", 1."
     }
+  testcase $ TestCase
+    { _testCase             = "Test many preceeding spaces allowed but ignored in output"
+    , _input                = "abc   ,1."
+    , _grammar              = sequence
+    , _shouldParse          = Just $ Seq (TextValue "abc") $ End (CharValue '1')
+    , _shouldParseLeftovers = ""
+    , _shouldPrint          = Just "\"abc\", 1."
+    }
+  testcase $ TestCase
+    { _testCase             = "Test many trailing spaces allowed but one given in output"
+    , _input                = "abc,   1."
+    , _grammar              = sequence
+    , _shouldParse          = Just $ Seq (TextValue "abc") $ End (CharValue '1')
+    , _shouldParseLeftovers = ""
+    , _shouldPrint          = Just "\"abc\", 1."
+    }
+  testcase $ TestCase
+    { _testCase             = "Test a sequence with various combinations of preceeding and trailing spaces and optional quotes"
+    , _input                = "abc,\"abc\" ,\"abc\", 1 , abc,abc     ,     1."
+    , _grammar              = sequence
+    , _shouldParse          = Just $ Seq (TextValue "abc") $ Seq (TextValue "abc") $ Seq (TextValue "abc") $ Seq (CharValue '1') $ Seq (TextValue "abc") $ Seq (TextValue "abc") $ End (CharValue '1')
+    , _shouldParseLeftovers = ""
+    , _shouldPrint          = Just "\"abc\", \"abc\", \"abc\", 1, \"abc\", \"abc\", 1."
+    }
 
 data Value
   = CharValue Char
@@ -272,7 +296,9 @@ sequenceSeq = seqIso \$/ (value \* spacedComma) \*/ sequence
 -- - Allow preceeding space forwards, ignore all backwards
 -- - Prefer a trailing space forwards, use a single space backwards
 spacedComma :: Grammar ()
-spacedComma = allowed (textIs " ") */ textIs "," \* prefered (textIs " ")
+spacedComma = allowed many1Spaces */ textIs "," \* prefered many1Spaces
+  where
+    many1Spaces = ignoreIso [()] \$/ (rmany1 $ textIs " ")
 
 -- A Parser reads Text into some result type and has the possibility of
 -- producing leftover text.
