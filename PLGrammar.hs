@@ -183,7 +183,7 @@ lower = label (descriptiveLabel "lower") $ charWhen isLower
 digit :: Grammar Char
 digit = label (descriptiveLabel "digit") $ charWhen isDigit
 
-arrow      = charIs '→' -- \|/ textIs "->"
+arrow      = charIs '→' \|/ textIs "->"
 bar        = charIs '|'
 star       = charIs '*'
 plus       = charIs '+'
