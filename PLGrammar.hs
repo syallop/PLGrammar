@@ -203,7 +203,7 @@ underscore = charIs '_'
 union      = charIs '∪' \|/ charIs 'U'
 question   = charIs '?'
 at         = charIs '@'
-bigLambda  = textIs "/\\" \|/ charIs 'Λ'
+bigLambda  = charIs 'Λ' \|/ textIs "/\\"
 bigAt      = charIs '#'
 spaceLike  = label (descriptiveLabel "spaceLike") $ alternatives . map textIs $ [" ","\t","\n","\r"]
 
