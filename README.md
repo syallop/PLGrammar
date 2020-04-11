@@ -157,7 +157,7 @@ sequenceSeq :: Grammar Sequence
 sequenceSeq = seqIso \$/ (value \* spacedComma) \*/ sequence
 
 spacedComma :: Grammar ()
-spacedComma = allowed many1Spaces */ textIs "," \* prefered many1Spaces
+spacedComma = allowed many1Spaces */ textIs "," \* preferred many1Spaces
   where
     many1Spaces = ignoreIso [()] \$/ (rmany1 $ textIs " ")
 
@@ -267,5 +267,5 @@ description of the API.
 | Differences in direction:                           |                                      |
 | `spaceAllowed :: Grammar ()`                        | `*` spaces parsed, `0` printed       |
 | `spaceRequired :: Grammar ()`                       | `+` spaces parsed, `1` printed       |
-| `spacePrefered :: Grammar ()`                       | `*` spaces parsed, `1` printed       |
+| `spacePreferred :: Grammar ()`                      | `*` spaces parsed, `1` printed       |
 

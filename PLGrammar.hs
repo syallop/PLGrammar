@@ -87,7 +87,7 @@ module PLGrammar
 
   , spaceAllowed
   , spaceRequired
-  , spacePrefered
+  , spacePreferred
 
   , sepBy
   , sepBy1
@@ -268,10 +268,10 @@ spaceAllowed = label (descriptiveLabel "spaceAllowed") $ allowed spaceLike
 spaceRequired :: Grammar ()
 spaceRequired = label (descriptiveLabel "spaceRequired") $ required spaceLike
 
--- | Space prefered to parse, one is printed.
+-- | Space preferred to parse, one is printed.
 -- 0-n parsed, 1 printed.
-spacePrefered :: Grammar ()
-spacePrefered = label (descriptiveLabel "spacePrefered") $ ignoreIso [()] \$/ rmany spaceLike
+spacePreferred :: Grammar ()
+spacePreferred = label (descriptiveLabel "spacePreferred") $ ignoreIso [()] \$/ rmany spaceLike
 
 -- | Separate at least one Grammar by a separator.
 -- E.G.

@@ -295,7 +295,7 @@ sequenceSeq = seqIso \$/ (value \* spacedComma) \*/ sequence
 -- - Allow preceeding space forwards, ignore all backwards
 -- - Prefer a trailing space forwards, use a single space backwards
 spacedComma :: Grammar ()
-spacedComma = allowed many1Spaces */ textIs "," \* prefered many1Spaces
+spacedComma = allowed many1Spaces */ textIs "," \* preferred many1Spaces
   where
     many1Spaces = ignoreIso [()] \$/ (rmany1 $ textIs " ")
 
