@@ -89,6 +89,9 @@ module PLGrammar
   , spaceRequired
   , spacePrefered
 
+  , sepBy
+  , sepBy1
+
   , permissive
   , token
 
@@ -113,6 +116,8 @@ import DSL.Instruction
 
 import Prelude hiding ((.),id)
 import Control.Category
+import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NE
 
 -- | Instructions which specify core aspects of a Grammar, minus higher level
 -- features such as alternatives, mapping, sequencing, etc.
@@ -267,6 +272,67 @@ spaceRequired = label (descriptiveLabel "spaceRequired") $ required spaceLike
 -- 0-n parsed, 1 printed.
 spacePrefered :: Grammar ()
 spacePrefered = label (descriptiveLabel "spacePrefered") $ ignoreIso [()] \$/ rmany spaceLike
+
+-- | Separate at least one Grammar by a separator.
+-- E.G.
+--   sepBy1 (textIs ',') digit
+-- would parse:
+--  "1"
+--  "1,2"
+--  "1,2,3"
+sepBy1
+  :: (Show a, Eq a)
+  => Grammar ()
+  -> Grammar a
+  -> Grammar (NonEmpty a)
+sepBy1 sepG g = iso \$/ sepBy1' sepG g
+  where
+    iso :: Iso [a] (NonEmpty a)
+    iso = Iso
+      {_forwards = \as -> case as of
+         []
+           -> Nothing
+         (a:as)
+           -> Just $ a NE.:| as
+      ,_backwards = \ne -> Just $ NE.toList ne
+      }
+
+-- Implementation of sepBy1 that uses a weaker list type rather than a NonEmpty
+sepBy1'
+  :: (Show a, Eq a)
+  => Grammar ()
+  -> Grammar a
+  -> Grammar [a]
+sepBy1' sepG g = iso \$/ g \*/ alternatives [ try $ sepG */ sepBy1' sepG g
+                                            , rpure []
+                                            ]
+  where
+    iso :: Iso (a,[a]) [a]
+    iso = Iso
+      { _forwards  = \(a,as) -> Just $ a:as
+      , _backwards = \as -> case as of
+        a:as
+          -> Just (a,as)
+        _ -> Nothing
+      }
+
+-- | Separate 0 or many Grammars by a separator.
+-- E.G.
+--   sepBy (textIs ',') digig
+-- would parse nothing or:
+-- ""
+-- "1"
+-- "1,2"
+-- "1,2,3"
+sepBy
+  :: (Show a, Eq a)
+  => Grammar ()
+  -> Grammar a
+  -> Grammar [a]
+sepBy sepG g = alternatives [ try $ sepBy1' sepG g
+                            , rpure []
+                            ]
+
 
 -- | A permissive grammar is itself and also may have:
 -- - Any number of spaces preceeding
