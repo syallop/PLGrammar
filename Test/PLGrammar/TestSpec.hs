@@ -19,7 +19,7 @@ import PLGrammar
 
 data TestCase a = TestCase
   { _testCase             :: Text
-  , _input                :: Text
+  , _input                :: [Text]
   , _grammar              :: Grammar a
   , _shouldParse          :: Maybe a
   , _shouldParseLeftovers :: Text
@@ -27,181 +27,130 @@ data TestCase a = TestCase
   }
 
 testcase :: (Show a, Eq a) => TestCase a -> Spec
-testcase (TestCase name input grammar shouldParse shouldParseLeftovers shouldPrint) = describe (Text.unpack name) $ do
+testcase (TestCase name inputs grammar shouldParse shouldParseLeftovers shouldPrint) = describe (Text.unpack name) $ do
   let parser  = toParser  grammar
       printer = toPrinter grammar
 
-      (leftovers,parse) = runParser parser input
+  describe "All inputs should parse to the expected value" $ do
+    forM_ inputs $ \input -> testParse input parser (shouldParseLeftovers, shouldParse)
 
-  it "parse leftovers" $ leftovers `shouldBe` shouldParseLeftovers
-  it "parse result"    $ parse     `shouldBe` shouldParse
+  describe "Value should print as expected" $ testPrint shouldParse printer shouldPrint
 
-  case shouldParse of
+  describe "Printed text should parse back to ensure roundtrip properties" $ case shouldPrint of
+    Nothing
+      -> pure ()
+    Just p
+      -> testParse p parser (shouldParseLeftovers, shouldParse)
+
+testParse :: (Show a, Eq a) => Text -> Parser a -> (Text,Maybe a) -> Spec
+testParse input parser (shouldParseLeftovers, shouldParse) = do
+  let (leftovers, mResult) = runParser parser input
+  it "has correct leftovers" $ leftovers `shouldBe` shouldParseLeftovers
+  it "has correct result" $ mResult `shouldBe` shouldParse
+
+testPrint :: Maybe a -> Printer a -> Maybe Text -> Spec
+testPrint input printer shouldPrint = case input of
     -- If there is no value theres nothing to print?
     Nothing
       -> pure ()
     Just v
-      -> it "print result" $ runPrinter printer v `shouldBe` shouldPrint
+      -> it "print result" $ (runPrinter printer v) `shouldBe` shouldPrint
 
 spec :: Spec
 spec = do
-  -- Establish the most simple case works
-  testcase $ TestCase
-    { _testCase             = "Simple, single chars: 1 -> 1"
-    , _input                = "1"
-    , _grammar              = value
-    , _shouldParse          = Just $ CharValue '1'
-    , _shouldParseLeftovers = ""
-    , _shouldPrint          = Just "1"
-    }
+  describe "Sequence example" $ do
+    testcase $ TestCase
+      { _testCase             = "Single chars"
+      , _input                = ["1"]
+      , _grammar              = value
+      , _shouldParse          = Just $ CharValue '1'
+      , _shouldParseLeftovers = ""
+      , _shouldPrint          = Just "1"
+      }
+    testcase $ TestCase
+      { _testCase             = "Strings"
+      , _input                = ["abc"
+                                ,"\"abc\""
+                                ]
+      , _grammar              = value
+      , _shouldParse          = Just $ TextValue "abc"
+      , _shouldParseLeftovers = ""
+      , _shouldPrint          = Just "\"abc\""
+      }
 
-  -- Can optional things be omitted going forward and required going backward?
-  testcase $ TestCase
-    { _testCase             = "Strings without optional fragments: abc -> \"abc\""
-    , _input                = "abc"
-    , _grammar              = value
-    , _shouldParse          = Just $ TextValue "abc"
-    , _shouldParseLeftovers = ""
-    , _shouldPrint          = Just "\"abc\""
-    }
+    -- Singleton sequences
+    testcase $ TestCase
+      { _testCase             = "Singleton sequence of char"
+      , _input                = ["1."]
+      , _grammar              = sequence
+      , _shouldParse          = Just $ End (CharValue '1')
+      , _shouldParseLeftovers = ""
+      , _shouldPrint          = Just "1."
+      }
+    testcase $ TestCase
+      { _testCase             = "Singleton sequence of text"
+      , _input                = ["abc."
+                                ,"\"abc\"."
+                                ]
+      , _grammar              = sequence
+      , _shouldParse          = Just $ End (TextValue "abc")
+      , _shouldParseLeftovers = ""
+      , _shouldPrint          = Just "\"abc\"."
+      }
 
-  -- Are optional things be provided going forward and required going backward?
-  testcase $ TestCase
-    { _testCase             = "Strings with optional fragments: \"abc\" -> \"abc\""
-    , _input                = "\"abc\""
-    , _grammar              = value
-    , _shouldParse          = Just $ TextValue "abc"
-    , _shouldParseLeftovers = ""
-    , _shouldPrint          = Just "\"abc\""
-    }
+    -- Longer sequences
+    testcase $ TestCase
+      { _testCase             = "Longer sequence of chars"
+      , _input                = ["1,1."]
+      , _grammar              = sequence
+      , _shouldParse          = Just $ Seq (CharValue '1') $ End (CharValue '1')
+      , _shouldParseLeftovers = ""
+      , _shouldPrint          = Just "1, 1."
+      }
+    testcase $ TestCase
+      { _testCase             = "Longer sequence of values with optionals at end"
+      , _input                = ["1,abc."
+                                ,"1,\"abc\"."
+                                ]
+      , _grammar              = sequence
+      , _shouldParse          = Just $ Seq (CharValue '1') $ End (TextValue "abc")
+      , _shouldParseLeftovers = ""
+      , _shouldPrint          = Just "1, \"abc\"."
+      }
+    testcase $ TestCase
+      { _testCase             = "Longer sequence of values with optionals at start"
+      , _input                = ["abc,1."
+                                ,"\"abc\",1."
+                                ]
+      , _grammar              = sequence
+      , _shouldParse          = Just $ Seq (TextValue "abc") $ End (CharValue '1')
+      , _shouldParseLeftovers = ""
+      , _shouldPrint          = Just "\"abc\", 1."
+      }
 
-  -- Singleton sequences
-  testcase $ TestCase
-    { _testCase             = "Singleton sequence of values: 1. -> 1."
-    , _input                = "1."
-    , _grammar              = sequence
-    , _shouldParse          = Just $ End (CharValue '1')
-    , _shouldParseLeftovers = ""
-    , _shouldPrint          = Just "1."
-    }
-  testcase $ TestCase
-    { _testCase             = "Singleton sequence of values: abc. -> \"abc\"."
-    , _input                = "abc."
-    , _grammar              = sequence
-    , _shouldParse          = Just $ End (TextValue "abc")
-    , _shouldParseLeftovers = ""
-    , _shouldPrint          = Just "\"abc\"."
-    }
-  testcase $ TestCase
-    { _testCase             = "Singleton sequence of values: \"abc\". -> \"abc\"."
-    , _input                = "\"abc\"."
-    , _grammar              = sequence
-    , _shouldParse          = Just $ End (TextValue "abc")
-    , _shouldParseLeftovers = ""
-    , _shouldPrint          = Just "\"abc\"."
-    }
-
-  -- Longer sequences
-  testcase $ TestCase
-    { _testCase             = "Longer sequence of values: 1,1. -> 1, 1."
-    , _input                = "1,1."
-    , _grammar              = sequence
-    , _shouldParse          = Just $ Seq (CharValue '1') $ End (CharValue '1')
-    , _shouldParseLeftovers = ""
-    , _shouldPrint          = Just "1, 1."
-    }
-  -- Check optional quotes still behave in end position
-  testcase $ TestCase
-    { _testCase             = "Longer sequence of values: 1,abc. -> 1, \"abc\"."
-    , _input                = "1,abc."
-    , _grammar              = sequence
-    , _shouldParse          = Just $ Seq (CharValue '1') $ End (TextValue "abc")
-    , _shouldParseLeftovers = ""
-    , _shouldPrint          = Just "1, \"abc\"."
-    }
-  testcase $ TestCase
-    { _testCase             = "Longer sequence of values: 1,\"abc\". -> 1, \"abc\"."
-    , _input                = "1,\"abc\"."
-    , _grammar              = sequence
-    , _shouldParse          = Just $ Seq (CharValue '1') $ End (TextValue "abc")
-    , _shouldParseLeftovers = ""
-    , _shouldPrint          = Just "1, \"abc\"."
-    }
-   -- Check optional quotes still behave in non-end position
-  testcase $ TestCase
-    { _testCase             = "Longer sequence of values: abc,1. -> \"abc\", 1."
-    , _input                = "abc,1."
-    , _grammar              = sequence
-    , _shouldParse          = Just $ Seq (TextValue "abc") $ End (CharValue '1')
-    , _shouldParseLeftovers = ""
-    , _shouldPrint          = Just "\"abc\", 1."
-    }
-  testcase $ TestCase
-    { _testCase             = "Longer sequence of values: \"abc\",1. -> \"abc\", 1."
-    , _input                = "\"abc\",1."
-    , _grammar              = sequence
-    , _shouldParse          = Just $ Seq (TextValue "abc") $ End (CharValue '1')
-    , _shouldParseLeftovers = ""
-    , _shouldPrint          = Just "\"abc\", 1."
-    }
-
-  -- Test spacing rules
-  testcase $ TestCase
-    { _testCase             = "Test trailing spaces preferred but not required as input"
-    , _input                = "abc,1."
-    , _grammar              = sequence
-    , _shouldParse          = Just $ Seq (TextValue "abc") $ End (CharValue '1')
-    , _shouldParseLeftovers = ""
-    , _shouldPrint          = Just "\"abc\", 1."
-    }
-  testcase $ TestCase
-    { _testCase             = "Test trailing spaces preferred and can be given as input"
-    , _input                = "abc, 1."
-    , _grammar              = sequence
-    , _shouldParse          = Just $ Seq (TextValue "abc") $ End (CharValue '1')
-    , _shouldParseLeftovers = ""
-    , _shouldPrint          = Just "\"abc\", 1."
-    }
-  testcase $ TestCase
-    { _testCase             = "Test preceeding spaces allowed but ignored in output"
-    , _input                = "abc ,1."
-    , _grammar              = sequence
-    , _shouldParse          = Just $ Seq (TextValue "abc") $ End (CharValue '1')
-    , _shouldParseLeftovers = ""
-    , _shouldPrint          = Just "\"abc\", 1."
-    }
-  testcase $ TestCase
-    { _testCase             = "Test preceeding and trailing spaces"
-    , _input                = "abc , 1."
-    , _grammar              = sequence
-    , _shouldParse          = Just $ Seq (TextValue "abc") $ End (CharValue '1')
-    , _shouldParseLeftovers = ""
-    , _shouldPrint          = Just "\"abc\", 1."
-    }
-  testcase $ TestCase
-    { _testCase             = "Test many preceeding spaces allowed but ignored in output"
-    , _input                = "abc   ,1."
-    , _grammar              = sequence
-    , _shouldParse          = Just $ Seq (TextValue "abc") $ End (CharValue '1')
-    , _shouldParseLeftovers = ""
-    , _shouldPrint          = Just "\"abc\", 1."
-    }
-  testcase $ TestCase
-    { _testCase             = "Test many trailing spaces allowed but one given in output"
-    , _input                = "abc,   1."
-    , _grammar              = sequence
-    , _shouldParse          = Just $ Seq (TextValue "abc") $ End (CharValue '1')
-    , _shouldParseLeftovers = ""
-    , _shouldPrint          = Just "\"abc\", 1."
-    }
-  testcase $ TestCase
-    { _testCase             = "Test a sequence with various combinations of preceeding and trailing spaces and optional quotes"
-    , _input                = "abc,\"abc\" ,\"abc\", 1 , abc,abc     ,     1."
-    , _grammar              = sequence
-    , _shouldParse          = Just $ Seq (TextValue "abc") $ Seq (TextValue "abc") $ Seq (TextValue "abc") $ Seq (CharValue '1') $ Seq (TextValue "abc") $ Seq (TextValue "abc") $ End (CharValue '1')
-    , _shouldParseLeftovers = ""
-    , _shouldPrint          = Just "\"abc\", \"abc\", \"abc\", 1, \"abc\", \"abc\", 1."
-    }
+    -- Test spacing rules
+    testcase $ TestCase
+      { _testCase             = "Test trailing and preceeding spaces"
+      , _input                = ["abc,1."
+                                ,"abc, 1."
+                                ,"abc ,1."
+                                ,"abc , 1."
+                                ,"abc   ,1."
+                                ,"abc,   1."
+                                ]
+      , _grammar              = sequence
+      , _shouldParse          = Just $ Seq (TextValue "abc") $ End (CharValue '1')
+      , _shouldParseLeftovers = ""
+      , _shouldPrint          = Just "\"abc\", 1."
+      }
+    testcase $ TestCase
+      { _testCase             = "Test a sequence with various combinations of preceeding and trailing spaces and optional quotes"
+      , _input                = ["abc,\"abc\" ,\"abc\", 1 , abc,abc     ,     1."]
+      , _grammar              = sequence
+      , _shouldParse          = Just $ Seq (TextValue "abc") $ Seq (TextValue "abc") $ Seq (TextValue "abc") $ Seq (CharValue '1') $ Seq (TextValue "abc") $ Seq (TextValue "abc") $ End (CharValue '1')
+      , _shouldParseLeftovers = ""
+      , _shouldPrint          = Just "\"abc\", \"abc\", \"abc\", 1, \"abc\", \"abc\", 1."
+      }
 
 data Value
   = CharValue Char
