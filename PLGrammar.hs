@@ -207,7 +207,19 @@ bigLambda  = charIs 'Λ' \|/ textIs "/\\"
 bigAt      = charIs '#'
 spaceLike  = label (descriptiveLabel "spaceLike") $ alternatives . map textIs $ [" ","\t","\n","\r"]
 
--- | A string of Text
+-- | A string of Text with try semantics.
+--
+-- E.G.
+-- Given:
+-- input = "abz"
+--
+-- And gramamrs:
+-- charSequenceGrammar = charIs 'a' */ charIs 'b' */ charIs 'c'
+-- textSequenceGrammar = textIs "abc"
+--
+-- Then interpreting with a backtracking parser would result in:
+-- - leftovers of 'z' for charSequenceGrammar
+-- - leftovers of 'abz' for textSequenceGrammar
 textIs :: Text -> Grammar ()
 textIs txt = label (descriptiveLabel txt) . try . textIs' $ txt
   where

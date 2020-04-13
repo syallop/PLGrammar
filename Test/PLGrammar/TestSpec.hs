@@ -40,7 +40,8 @@ testcase (TestCase name inputs grammar shouldParse shouldParseLeftovers shouldPr
     Nothing
       -> pure ()
     Just p
-      -> testParse p parser (shouldParseLeftovers, shouldParse)
+      -> testParse p parser ("", shouldParse)
+
 
 testParse :: (Show a, Eq a) => Text -> Parser a -> (Text,Maybe a) -> Spec
 testParse input parser (shouldParseLeftovers, shouldParse) = do
@@ -58,6 +59,235 @@ testPrint input printer shouldPrint = case input of
 
 spec :: Spec
 spec = do
+  describe "Simple Grammars" $ do
+    describe "charIs" $ do
+      testcase $ TestCase
+        { _testCase             = "character"
+        , _input                = ["1"]
+        , _grammar              = charIs '1'
+        , _shouldParse          = Just ()
+        , _shouldParseLeftovers = ""
+        , _shouldPrint          = Just "1"
+        }
+      testcase $ TestCase
+        { _testCase             = "with leftovers"
+        , _input                = ["11"]
+        , _grammar              = charIs '1'
+        , _shouldParse          = Just ()
+        , _shouldParseLeftovers = "1"
+        , _shouldPrint          = Just "1"
+        }
+
+    describe "textIs" $ do
+      testcase $ TestCase
+        { _testCase             = "text"
+        , _input                = ["abc"]
+        , _grammar              = textIs "abc"
+        , _shouldParse          = Just ()
+        , _shouldParseLeftovers = ""
+        , _shouldPrint          = Just "abc"
+        }
+      testcase $ TestCase
+        { _testCase             = "with leftovers"
+        , _input                = ["abcd"]
+        , _grammar              = textIs "abc"
+        , _shouldParse          = Just ()
+        , _shouldParseLeftovers = "d"
+        , _shouldPrint          = Just "abc"
+        }
+      testcase $ TestCase
+        { _testCase             = "backtracks by default"
+        , _input                = ["abz"]
+        , _grammar              = textIs "abc"
+        , _shouldParse          = Nothing
+        , _shouldParseLeftovers = "abz"
+        , _shouldPrint          = Nothing
+        }
+      testcase $ TestCase
+        { _testCase             = "still backtracks with try"
+        , _input                = ["abz"]
+        , _grammar              = try $ textIs "abc"
+        , _shouldParse          = Nothing
+        , _shouldParseLeftovers = "abz"
+        , _shouldPrint          = Nothing
+        }
+
+    describe "anyChar" $ do
+      testcase $ TestCase
+        { _testCase             = "succeeds"
+        , _input                = ["a"]
+        , _grammar              = anyChar
+        , _shouldParse          = Just $ 'a'
+        , _shouldParseLeftovers = ""
+        , _shouldPrint          = Just "a"
+        }
+      testcase $ TestCase
+        { _testCase             = "allows leftovers"
+        , _input                = ["aLEFTOVERS"]
+        , _grammar              = try anyChar
+        , _shouldParse          = Just $ 'a'
+        , _shouldParseLeftovers = "LEFTOVERS"
+        , _shouldPrint          = Just "a"
+        }
+
+    describe "charWhen" $ do
+      testcase $ TestCase
+        { _testCase             = "succeeds"
+        , _input                = ["b"]
+        , _grammar              = charWhen (== 'b')
+        , _shouldParse          = Just $ 'b'
+        , _shouldParseLeftovers = ""
+        , _shouldPrint          = Just "b"
+        }
+      testcase $ TestCase
+        { _testCase             = "allows leftovers"
+        , _input                = ["bb"]
+        , _grammar              = charWhen (== 'b')
+        , _shouldParse          = Just $ 'b'
+        , _shouldParseLeftovers = "b"
+        , _shouldPrint          = Just "b"
+        }
+
+    describe "sequence right" $ do
+      testcase $ TestCase
+        { _testCase             = "succeeds"
+        , _input                = ["abc"]
+        , _grammar              = charIs 'a' */ charIs 'b' */ charIs 'c'
+        , _shouldParse          = Just ()
+        , _shouldParseLeftovers = ""
+        , _shouldPrint          = Just "abc"
+        }
+      testcase $ TestCase
+        { _testCase             = "succeeds with leftovers"
+        , _input                = ["abcd"]
+        , _grammar              = charIs 'a' */ charIs 'b' */ charIs 'c'
+        , _shouldParse          = Just ()
+        , _shouldParseLeftovers = "d"
+        , _shouldPrint          = Just "abc"
+        }
+
+      testcase $ TestCase
+        { _testCase             = "does not backtrack by default"
+        , _input                = ["abz"]
+        , _grammar              = charIs 'a' */ charIs 'b' */ charIs 'c'
+        , _shouldParse          = Nothing
+        , _shouldParseLeftovers = "z"
+        , _shouldPrint          = Nothing
+        }
+
+      testcase $ TestCase
+        { _testCase             = "backtracks with try"
+        , _input                = ["abz"]
+        , _grammar              = try $ charIs 'a' */ charIs 'b' */ charIs 'c'
+        , _shouldParse          = Nothing
+        , _shouldParseLeftovers = "abz"
+        , _shouldPrint          = Nothing
+        }
+
+    describe "upper" $ do
+      testcase $ TestCase
+        { _testCase             = "succeeds"
+        , _input                = ["U"]
+        , _grammar              = upper
+        , _shouldParse          = Just 'U'
+        , _shouldParseLeftovers = ""
+        , _shouldPrint          = Just "U"
+        }
+      testcase $ TestCase
+        { _testCase             = "succeeds with leftovers"
+        , _input                = ["ALEFTOVERS"]
+        , _grammar              = (textIs "A" */ rpure 'A')
+        , _shouldParse          = Just 'A'
+        , _shouldParseLeftovers = "LEFTOVERS"
+        , _shouldPrint          = Just "A"
+        }
+
+    describe "alternatives" $ do
+      testcase $ TestCase
+        { _testCase             = "succeeds"
+        , _input                = ["A"]
+        , _grammar              = (textIs "A" \|/ textIs "B")
+        , _shouldParse          = Just ()
+        , _shouldParseLeftovers = ""
+        , _shouldPrint          = Just "A"
+        }
+      testcase $ TestCase
+        { _testCase             = "succeeds with leftovers"
+        , _input                = ["AB"]
+        , _grammar              = (textIs "A" \|/ textIs "B")
+        , _shouldParse          = Just ()
+        , _shouldParseLeftovers = "B"
+        , _shouldPrint          = Just "A"
+        }
+
+    describe "many" $ do
+      testcase $ TestCase
+        { _testCase             = "succeeds with many matches"
+        , _input                = ["AAA"]
+        , _grammar              = rmany (charIs 'A')
+        , _shouldParse          = Just [(),(),()]
+        , _shouldParseLeftovers = ""
+        , _shouldPrint          = Just "AAA"
+        }
+      testcase $ TestCase
+        { _testCase             = "succeeds with many matches and leftovers"
+        , _input                = ["AAAB"]
+        , _grammar              = rmany (charIs 'A')
+        , _shouldParse          = Just [(),(),()]
+        , _shouldParseLeftovers = "B"
+        , _shouldPrint          = Just "AAA"
+        }
+      testcase $ TestCase
+        { _testCase             = "succeeds with 0 matches"
+        , _input                = [""]
+        , _grammar              = rmany (charIs 'A')
+        , _shouldParse          = Just []
+        , _shouldParseLeftovers = ""
+        , _shouldPrint          = Just ""
+        }
+      testcase $ TestCase
+        { _testCase             = "succeeds with 0 matches and leftovers"
+        , _input                = ["B"]
+        , _grammar              = rmany (charIs 'A')
+        , _shouldParse          = Just []
+        , _shouldParseLeftovers = "B"
+        , _shouldPrint          = Just ""
+        }
+
+    describe "many1" $ do
+      testcase $ TestCase
+        { _testCase             = "succeeds with many matches"
+        , _input                = ["AAA"]
+        , _grammar              = (rmany (charIs 'A'))
+        , _shouldParse          = Just [(),(),()]
+        , _shouldParseLeftovers = ""
+        , _shouldPrint          = Just "AAA"
+        }
+      testcase $ TestCase
+        { _testCase             = "succeeds with many matches and leftovers"
+        , _input                = ["AAAB"]
+        , _grammar              = (rmany (charIs 'A'))
+        , _shouldParse          = Just [(),(),()]
+        , _shouldParseLeftovers = "B"
+        , _shouldPrint          = Just "AAA"
+        }
+      testcase $ TestCase
+        { _testCase             = "fails with zero matches"
+        , _input                = [""]
+        , _grammar              = rmany1 (charIs 'A')
+        , _shouldParse          = Nothing
+        , _shouldParseLeftovers = ""
+        , _shouldPrint          = Nothing
+        }
+      testcase $ TestCase
+        { _testCase             = "fails with zero matches and leftovers"
+        , _input                = ["B"]
+        , _grammar              = rmany1 (charIs 'A')
+        , _shouldParse          = Nothing
+        , _shouldParseLeftovers = "B"
+        , _shouldPrint          = Nothing
+        }
+
   describe "Sequence example" $ do
     testcase $ TestCase
       { _testCase             = "Single chars"
@@ -281,12 +511,13 @@ instance Monad Parser where
   return a = Parser $ \txt -> (txt, Just a)
 
   (Parser pa) >>= f = Parser $ \txt -> case pa txt of
+    (leftovers, Nothing)
+      -> (leftovers, Nothing)
+
     (leftovers, Just a)
       -> let Parser pb = f a
           in pb leftovers
 
-    (leftovers, Nothing)
-      -> (leftovers, Nothing)
 
 instance Alternative Parser where
   empty = mzero
@@ -295,14 +526,14 @@ instance Alternative Parser where
 instance MonadPlus Parser where
   mzero = Parser $ \txt -> (txt,Nothing)
 
-  mplus (Parser pa0) (Parser pa1) = Parser $ \txt0 -> case pa0 txt0 of
-    (leftovers,Just a)
-      -> (leftovers,Just a)
+  mplus pa0 pa1 = Parser $ \txt0 -> case runParser pa0 txt0 of
+    -- If input has been consumed, don't try the second
+    (txt1,Nothing)
+      | txt0 == txt1 -> runParser pa1 txt0
+      | otherwise    -> (txt1,Nothing)
 
-    (leftovers,Nothing)
-      -> if txt0 == leftovers
-           then pa1 txt0
-           else (leftovers,Nothing)
+    (txt1,Just a)
+      -> (txt1, Just a)
 
 toParser :: Grammar a -> Parser a
 toParser (Reversible g) = case g of
@@ -316,14 +547,18 @@ toParser (Reversible g) = case g of
                   -> (txt',Just c)
 
          GLabel _ g
-           -> toParser g
+           -> Parser $ \txt -> case runParser (toParser g) txt of
+                (leftovers,Nothing)
+                  -> (leftovers,Nothing)
+                (leftovers,Just a)
+                  -> (leftovers,Just a)
 
          GTry g
            -> Parser $ \txt ->  case runParser (toParser g) txt of
-                (leftovers,Nothing)
+                (_leftovers,Nothing)
                   -> (txt,Nothing)
-                success
-                  -> success
+                (leftovers,Just a)
+                  -> (leftovers,Just a)
   RPure a
     -> Parser $ \txt -> (txt, Just a)
 
