@@ -6,6 +6,7 @@
   , OverloadedStrings
   , RankNTypes
   , RankNTypes
+  , LambdaCase
   , ScopedTypeVariables
   , TypeOperators
   #-}
@@ -32,7 +33,7 @@ Correspondance to invertable-syntax:
   - token: anyChar
 -}
 module PLGrammar
-  ( Grammar (..)
+  ( Grammar ()
   , GrammarInstr (..)
 
   , charIs
@@ -102,10 +103,6 @@ module PLGrammar
 import Data.Text (Text)
 import Data.Char
 import qualified Data.Text as T
-import Data.Foldable
-import Data.Monoid
-import Control.Applicative
-import Control.Monad
 
 {-import PLGrammar.Iso-}
 import PLLabel
@@ -188,6 +185,7 @@ lower = label (descriptiveLabel "lower") $ charWhen isLower
 digit :: Grammar Char
 digit = label (descriptiveLabel "digit") $ charWhen isDigit
 
+arrow, bar, star, plus, comma, upArrow, lambda, langle, rangle, lparen, rparen, underscore, union, question, at, bigLambda, bigAt, spaceLike :: Grammar ()
 arrow      = charIs '→' \|/ textIs "->"
 bar        = charIs '|'
 star       = charIs '*'
@@ -222,15 +220,16 @@ spaceLike  = label (descriptiveLabel "spaceLike") $ alternatives . map textIs $ 
 -- - leftovers of 'abz' for textSequenceGrammar
 textIs :: Text -> Grammar ()
 textIs txt = label (descriptiveLabel txt) . try . textIs' $ txt
-  where
-    textIs' txt = case T.uncons txt of
-      Nothing
-        -> rpure ()
 
-      Just (c,cs)
-        ->  inverse (elementIso ((), ()))
-        \$/ (inverse (elementIso c) \$/ anyChar)
-        \*/ textIs' cs
+textIs' :: Text -> Grammar ()
+textIs' txt = case T.uncons txt of
+  Nothing
+    -> rpure ()
+
+  Just (c,cs)
+    ->  inverse (elementIso ((), ()))
+    \$/ (inverse (elementIso c) \$/ anyChar)
+    \*/ textIs' cs
 
 -- | Try should backtrack any notion of consumed input upon failure.
 try
@@ -301,7 +300,7 @@ sepBy1 sepG g = iso \$/ sepBy1' sepG g
   where
     iso :: Iso [a] (NonEmpty a)
     iso = Iso
-      {_forwards = \as -> case as of
+      {_forwards = \case
          []
            -> Nothing
          (a:as)
@@ -322,7 +321,7 @@ sepBy1' sepG g = iso \$/ g \*/ alternatives [ try $ sepG */ sepBy1' sepG g
     iso :: Iso (a,[a]) [a]
     iso = Iso
       { _forwards  = \(a,as) -> Just $ a:as
-      , _backwards = \as -> case as of
+      , _backwards = \case
         a:as
           -> Just (a,as)
         _ -> Nothing
@@ -377,14 +376,9 @@ tokenThenMany1ThenSomething
   -> Grammar a
   -> Iso ([xs],a) r
   -> Grammar r
-tokenThenMany1ThenSomething token many something iso
-  = token
+tokenThenMany1ThenSomething t many something iso
+  = t
   */ (iso \$/ rmany1 ((betweenParens many \|/ many) \* spaceRequired)
           \*/ (betweenParens something \|/ something)
      )
-
-combiner :: (a -> x -> x) -> [a] -> x -> x
-combiner f []     _ = error "Cant combine empty list"
-combiner f [a]    x = f a x
-combiner f (a:as) x = f a $ combiner f as x
 

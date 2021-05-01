@@ -9,8 +9,6 @@ import Prelude hiding (sequence)
 import Data.Text
 import qualified Data.Text as Text
 import Control.Monad hiding (sequence)
-import Data.Monoid
-import Data.Semigroup
 import Control.Applicative
 
 import Reversible
@@ -546,15 +544,15 @@ toParser (Reversible g) = case g of
                 Just (c,txt')
                   -> (txt',Just c)
 
-         GLabel _ g
-           -> Parser $ \txt -> case runParser (toParser g) txt of
+         GLabel _ labelledG
+           -> Parser $ \txt -> case runParser (toParser labelledG) txt of
                 (leftovers,Nothing)
                   -> (leftovers,Nothing)
                 (leftovers,Just a)
                   -> (leftovers,Just a)
 
-         GTry g
-           -> Parser $ \txt ->  case runParser (toParser g) txt of
+         GTry attemptedG
+           -> Parser $ \txt ->  case runParser (toParser attemptedG) txt of
                 (_leftovers,Nothing)
                   -> (txt,Nothing)
                 (leftovers,Just a)
@@ -596,11 +594,11 @@ toPrinter (Reversible g) = case g of
          GAnyChar
            -> Printer $ \a -> Just $ Text.singleton a
 
-         GLabel _ g
-           -> toPrinter g
+         GLabel _ labelledG
+           -> toPrinter labelledG
 
-         GTry g
-           -> toPrinter g
+         GTry attemptedG
+           -> toPrinter attemptedG
 
   RPure a
     -> Printer $ \a' -> if a == a' then Just mempty else Nothing
