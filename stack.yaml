@@ -1,14 +1,14 @@
-resolver: lts-17.8
+resolver: lts-21.24
 packages:
 - .
 extra-deps:
 - git: https://github.com/syallop/PLPrinter
-  commit: 29c1fc4fe5f33086bed4855e016aa56aa80264af
+  commit: 74fd1a684542f9f876753e2d7b3b0d5609bf385e
 - git: https://github.com/syallop/PLLabel
-  commit: a95807e7d6e3b4a22b15bac1f9791bea212ef00d
+  commit: d0f17cf627c28e005d02e13a69a74ccd615cc9d1
 - git: https://github.com/syallop/Reversible
-  commit: 84188a89af962716dc0534d552da715305cb0cf5
+  commit: 9ccb55ba11d7b82a53ed470040b50cac0ea12664
 - git: https://github.com/syallop/DSL-Compose
-  commit: 5a95ae855f3291aa3193a7424892035226b10d2f
+  commit: 74d87b23e7ac8063f25194b607049bd4c7c54f47
 flags: {}
 extra-package-dbs: []

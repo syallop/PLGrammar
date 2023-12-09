@@ -102,6 +102,7 @@ module PLGrammar
 
 import Data.Text (Text)
 import Data.Char
+import Data.Kind
 import qualified Data.Text as T
 
 {-import PLGrammar.Iso-}
@@ -121,7 +122,7 @@ import qualified Data.List.NonEmpty as NE
 --
 -- - 'a' is the result type the Grammar should parse/ print/ act upon.
 -- - 'p' is the type of program the Grammar is part of.
-data GrammarInstr (p :: * -> *) (a :: *) where
+data GrammarInstr (p :: Type -> Type) (a :: Type) where
   -- Any character
   GAnyChar
     :: GrammarInstr p Char

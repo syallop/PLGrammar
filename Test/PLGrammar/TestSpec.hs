@@ -502,11 +502,11 @@ instance Functor Parser where
       -> (leftovers,Nothing)
 
 instance Applicative Parser where
-  pure  = return
-  (<*>) = ap
+  pure a = Parser $ \txt -> (txt, Just a)
+  (<*>)  = ap
 
 instance Monad Parser where
-  return a = Parser $ \txt -> (txt, Just a)
+  return = pure
 
   (Parser pa) >>= f = Parser $ \txt -> case pa txt of
     (leftovers, Nothing)
